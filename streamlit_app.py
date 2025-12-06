@@ -201,16 +201,17 @@ def main():
     # ---------------- EXPLANATION ----------------
     with explain_col:
         st.markdown("<div class='avant-card'>", unsafe_allow_html=True)
-        st.markdown("#### Why these features drive price")
-        st.markdown(
-            """
-            - **Year** captures generation and technology changes.
-            - **Mileage** is the strongest condition indicator.
-            - **Submodel** captures performance + rarity premiums.
-            - **Title text** signals options, history, and provenance.
-            - **ZIP code** maps to regional demand.
-            """
-        )
+        st.subheader("Why these features drive price")
+    st.markdown(
+        """
+    - **Submodel** is the single largest driver of Porsche 911 prices because it captures performance level, trim hierarchy, rarity, and enthusiast demand.
+    - **Year** reflects generational improvements, technology updates, and market scarcity, especially for older air-cooled or special-edition models.
+    - **Mileage** is the strongest proxy for condition, with low-mileage cars commanding significant premiums.
+    - **Owners** provides insight into vehicle history. Fewer owners often signals better care, stronger provenance, and higher perceived value.
+    - **Title text** helps capture important descriptors such as special options, unique builds, documentation history, and keywords that influence buyer behavior.
+    - **Location (ZIP code)** maps to regional demand, shipping considerations, and bidding intensity differences across U.S. markets.
+        """
+    )
 
         st.markdown("---")
         st.markdown("#### Recommended auction timing")

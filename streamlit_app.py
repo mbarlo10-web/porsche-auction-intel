@@ -198,11 +198,11 @@ def main():
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ---------------- EXPLANATION ----------------
+    # --------------- EXPLANATION ---------------
     with explain_col:
         st.markdown("<div class='avant-card'>", unsafe_allow_html=True)
         st.subheader("Why these features drive price")
-    st.markdown(
+        st.markdown(
         """
     - **Submodel** is the single largest driver of Porsche 911 prices because it captures performance level, trim hierarchy, rarity, and enthusiast demand.
     - **Year** reflects generational improvements, technology updates, and market scarcity, especially for older air-cooled or special-edition models.
@@ -212,16 +212,12 @@ def main():
     - **Location (ZIP code)** maps to regional demand, shipping considerations, and bidding intensity differences across U.S. markets.
         """
     )
+        st.markdown("</div>", unsafe_allow_html=True)
 
+    # divider before next section
         st.markdown("---")
         st.markdown("#### Recommended auction timing")
-        st.markdown(
-            f"""
-            - Best window: **{BEST_MONTH_LABEL}**
-            - Best ending days: **{BEST_DOW_LABEL}**
-            """
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+
 
     # ---------------- PRICE ESTIMATE ----------------
     st.markdown("<div class='avant-card'>", unsafe_allow_html=True)

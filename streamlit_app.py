@@ -12,10 +12,10 @@ from pandas.api.types import is_numeric_dtype
 BASE_DIR = os.path.dirname(__file__)
 
 MODEL_URI = os.path.join(BASE_DIR, "xgb_price_model_best")
-
 DATA_PATH = os.path.join(BASE_DIR, "final_predictions_clean_with_corrected_mileage.csv")
 
-
+# If you want to force a relative path only, you can keep this line,
+# but MODEL_URI already uses BASE_DIR.
 DATA_PATH = "final_predictions_clean_with_corrected_mileage.csv"
 
 FEATURE_COLS = [
@@ -69,6 +69,47 @@ def load_training_stats(csv_path):
     return med_lat, med_lon, med_views, med_watchers, med_comments, med_accidents
 
 
+@st.cache_data
+def load_zip_lookup(csv_path):
+    """
+    Build a small lookup table:
+    zip_str -> (latitude, longitude)
+
+    We convert zip_code to an integer string so that "85260"
+    from the text input matches "85260" from the CSV.
+    """
+    df = pd.read_csv(csv_path, usecols=["zip_code", "latitude", "longitude"])
+    df = df.dropna(subset=["zip_code", "latitude", "longitude"]).drop_duplicates(
+        subset=["zip_code"]
+    )
+
+    # Convert to string like "85260"
+    df["zip_str"] = df["zip_code"].astype(float).astype(int).astype(str)
+
+    return df[["zip_str", "latitude", "longitude"]]
+
+
+def get_lat_lon_for_zip(zip_df, zipcode_str, default_lat, default_lon):
+    """
+    Look up latitude and longitude for a given zipcode string.
+    If not found, fall back to the median training lat/lon.
+    """
+    if zipcode_str is None:
+        return default_lat, default_lon
+
+    z_str = zipcode_str.strip()
+    if not z_str:
+        return default_lat, default_lon
+
+    match = zip_df[zip_df["zip_str"] == z_str]
+    if match.empty:
+        return default_lat, default_lon
+
+    lat = float(match["latitude"].iloc[0])
+    lon = float(match["longitude"].iloc[0])
+    return lat, lon
+
+
 # ------------------------------------------------------------------
 # STYLING
 # ------------------------------------------------------------------
@@ -116,7 +157,18 @@ def set_page_style():
 # FEATURE BUILDER
 # ------------------------------------------------------------------
 
-def build_feature_row(year, mileage, views, watchers, comments, accidents, lat, lon, auction_month, auction_dow):
+def build_feature_row(
+    year,
+    mileage,
+    views,
+    watchers,
+    comments,
+    accidents,
+    lat,
+    lon,
+    auction_month,
+    auction_dow,
+):
     row = {
         "year": year,
         "mileage": mileage,
@@ -144,26 +196,28 @@ def main():
     set_page_style()
 
     model = load_model()
-    med_lat, med_lon, med_views, med_watchers, med_comments, med_accidents = load_training_stats(DATA_PATH)
+    med_lat, med_lon, med_views, med_watchers, med_comments, med_accidents = load_training_stats(
+        DATA_PATH
+    )
+    zip_df = load_zip_lookup(DATA_PATH)
 
-    # ---------------- HERO BANNER (Left: Logo/Title, Right: Image) ----------------
-    
-    # ADJUSTED RATIO: Increased the left column from 1 to 1.2 for a larger logo area
-    banner_left_col, banner_right_col = st.columns([1.2, 4]) 
+    # ---------------- HERO BANNER ----------------
+    banner_left_col, banner_right_col = st.columns([1.2, 4])
 
-    # --- LEFT BANNER CONTENT (Logo and Title) ---
     with banner_left_col:
-        # ADJUSTED WIDTH: Increased the logo width from 300px to 350px
-        st.image("avant_garde_logo.png", width=350) 
-        
+        st.image("avant_garde_logo.png", width=350)
         st.markdown("<h1>Porsche 911 Auction Intelligence</h1>", unsafe_allow_html=True)
-        st.markdown("<div class='avant-subtitle'>Price advisor for Bring a Trailer–style auctions</div>", unsafe_allow_html=True)
-        st.markdown("<div class='avant-subtitle'>Mark Barlow • MS AIB Candidate</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='avant-subtitle'>Price advisor for Bring a Trailer–style auctions</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div class='avant-subtitle'>Mark Barlow • MS AIB Candidate</div>",
+            unsafe_allow_html=True,
+        )
 
-    # --- RIGHT BANNER CONTENT (Hero Image) ---
     with banner_right_col:
-        # Assuming your hero image is named 'GT3.jpg' based on the file uploads
-        st.image('GT3.jpg', use_column_width=True) 
+        st.image("GT3.jpg", use_column_width=True)
 
     st.markdown("---")
 
@@ -183,17 +237,31 @@ def main():
             min_value=0,
             max_value=250000,
             value=30000,
-            step=500
+            step=500,
         )
 
         submodel = st.selectbox(
             "Submodel",
-            ["Base", "Carrera", "Carrera S", "Carrera 4S", "Targa",
-             "Turbo", "Turbo S", "GT3", "GT3 RS", "GT2 RS", "Other"],
+            [
+                "Base",
+                "Carrera",
+                "Carrera S",
+                "Carrera 4S",
+                "Targa",
+                "Turbo",
+                "Turbo S",
+                "GT3",
+                "GT3 RS",
+                "GT2 RS",
+                "Other",
+            ],
             index=7,
         )
 
-        title = st.text_input("Auction Title", "2016 Porsche 911 GT3 RS - PCCB, Lift, 1-Owner")
+        title = st.text_input(
+            "Auction Title", "2016 Porsche 911 GT3 RS - PCCB, Lift, 1-Owner"
+        )
+
         zipcode = st.text_input("Seller ZIP Code", "85260")
 
         st.markdown("</div>", unsafe_allow_html=True)
@@ -203,32 +271,39 @@ def main():
         st.markdown("<div class='avant-card'>", unsafe_allow_html=True)
         st.subheader("Why these features drive price")
         st.markdown(
-        """
-    - **Submodel** is the single largest driver of Porsche 911 prices because it captures performance level, trim hierarchy, rarity, and enthusiast demand.
-    - **Year** reflects generational improvements, technology updates, and market scarcity, especially for older air-cooled or special-edition models.
-    - **Mileage** is the strongest proxy for condition, with low-mileage cars commanding significant premiums.
-    - **Owners** provides insight into vehicle history. Fewer owners often signals better care, stronger provenance, and higher perceived value.
-    - **Title text** helps capture important descriptors such as special options, unique builds, documentation history, and keywords that influence buyer behavior.
-    - **Location (ZIP code)** maps to regional demand, shipping considerations, and bidding intensity differences across U.S. markets.
-        """
-    )
+            """
+        - **Submodel** is the single largest driver of Porsche 911 prices because it captures performance level, trim hierarchy, rarity, and enthusiast demand.
+        - **Year** reflects generational improvements, technology updates, and market scarcity, especially for older air-cooled or special-edition models.
+        - **Mileage** is the strongest proxy for condition, with low-mileage cars commanding significant premiums.
+        - **Owners** provides insight into vehicle history. Fewer owners often signals better care, stronger provenance, and higher perceived value.
+        - **Title text** helps capture important descriptors such as special options, unique builds, documentation history, and keywords that influence buyer behavior.
+        - **Location (ZIP code)** maps to regional demand, shipping considerations, and bidding intensity differences across U.S. markets through latitude and longitude in the model.
+            """
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # divider before next section
         st.markdown("---")
         st.markdown("#### Recommended auction timing")
-
 
     # ---------------- PRICE ESTIMATE ----------------
     st.markdown("<div class='avant-card'>", unsafe_allow_html=True)
     st.markdown("### Price Estimate")
 
     if st.button("Estimate Auction Price"):
+        # Use zipcode to determine latitude and longitude
+        lat, lon = get_lat_lon_for_zip(zip_df, zipcode, med_lat, med_lon)
+
         features = build_feature_row(
-            year, mileage,
-            med_views, med_watchers, med_comments,
-            med_accidents, med_lat, med_lon,
-            BEST_MONTH, BEST_DOW
+            year,
+            mileage,
+            med_views,
+            med_watchers,
+            med_comments,
+            med_accidents,
+            lat,
+            lon,
+            BEST_MONTH,
+            BEST_DOW,
         )
 
         predicted_price = float(model.predict(features)[0])
@@ -237,15 +312,24 @@ def main():
 
         with c1:
             st.markdown("Predicted Sale Price")
-            st.markdown(f"<div class='avant-metric'>${predicted_price:,.0f}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='avant-metric'>${predicted_price:,.0f}</div>",
+                unsafe_allow_html=True,
+            )
 
         with c2:
             st.markdown("Recommended Window")
-            st.markdown(f"<div class='avant-metric'>{BEST_MONTH_LABEL}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='avant-metric'>{BEST_MONTH_LABEL}</div>",
+                unsafe_allow_html=True,
+            )
 
         with c3:
             st.markdown("Recommended End Day")
-            st.markdown(f"<div class='avant-metric'>{BEST_DOW_LABEL}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='avant-metric'>{BEST_DOW_LABEL}</div>",
+                unsafe_allow_html=True,
+            )
 
         st.markdown("---")
         st.markdown(
@@ -256,23 +340,21 @@ def main():
         )
 
     st.markdown("</div>", unsafe_allow_html=True)
-    
-    # ---------------- FOOTER (W.P. Carey Logo) ----------------
-    st.markdown("<br><br><br>", unsafe_allow_html=True) # Add some vertical space
-    st.markdown("---") 
+
+    # ---------------- FOOTER ----------------
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    st.markdown("---")
 
     footer_col1, footer_col2, footer_col3 = st.columns([1, 4, 1])
-    
+
     with footer_col2:
-        # Place the W.P. Carey logo centrally using the middle column
         st.image(
-            "asu-wpcarey-school-of-business-asu-footer.png", 
-            width=350,  # Adjust width as needed for your footer style
-            caption="Powered by ASU W.P. Carey School of Business Research"
+            "asu-wpcarey-school-of-business-asu-footer.png",
+            width=350,
+            caption="Powered by ASU W. P. Carey School of Business Research",
         )
-    
-    # Ensure the main content doesn't run off the bottom
-    st.markdown("<br><br>", unsafe_allow_html=True) 
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
